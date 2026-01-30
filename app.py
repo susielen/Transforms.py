@@ -7,7 +7,7 @@ from datetime import datetime
 # Configuração da página
 st.set_page_config(page_title="Conversor OFX", page_icon="🏦")
 
-# Estilo para o botão verde e minimalista
+# Estilo para o botão verde e ajustes visuais
 st.markdown("""
     <style>
     div.stDownloadButton > button:first-child {
@@ -38,25 +38,20 @@ with col2:
     arquivo_pdf = st.file_uploader("", type="pdf")
 
 if arquivo_pdf:
-    # --- ANIMAÇÃO COM EMOJIS ---
+    # --- ANIMAÇÃO COM EMOJIS PEQUENOS E RÁPIDOS ---
     progresso = st.empty()
     
-    # Lista de emojis para simular a transformação
+    # Sequência de transformação
     frames = [
-        "📄 ➡️ 📥",
-        "📥 ➡️ 🤖",
-        "🤖 ➡️ 💸",
-        "💸 ➡️ 🪙",
-        "🪙 ➡️ 📊",
-        "📊 ➡️ 📝",
-        "📝 ➡️ ✅"
+        "📄📥", "📥🤖", "🤖💸", "💸🪙", "🪙📊", "📊✅"
     ]
     
     for frame in frames:
-        progresso.markdown(f"<h1 style='text-align: center;'>{frame}</h1>", unsafe_allow_html=True)
-        time.sleep(0.5) # Velocidade da animação
+        # H3 deixa o emoji menor que o H1 anterior
+        progresso.markdown(f"<h3 style='text-align: center;'>{frame}</h3>", unsafe_allow_html=True)
+        time.sleep(0.2) # Velocidade aumentada (era 0.5)
     
-    progresso.empty() # Limpa a animação ao terminar
+    progresso.empty() 
 
     transacoes = []
     with pdfplumber.open(arquivo_pdf) as pdf:
@@ -67,14 +62,15 @@ if arquivo_pdf:
                     m_data = re.search(r'(\d{2}/\d{2})', linha)
                     m_valor = re.search(r'(-?\d?\.?\d+,\d{2})', linha)
                     if m_data and m_valor:
+                        # Formatação para o padrão OFX
                         v = m_valor.group(1).replace('.', '').replace(',', '.')
                         d = linha.replace(m_data.group(1), '').replace(m_valor.group(1), '').strip()
                         transacoes.append({'v': v, 'd': d})
 
     if transacoes:
-        st.success(f"✅ {len(transacoes)} lançamentos convertidos!")
+        st.success(f"✅ {len(transacoes)} itens convertidos!")
         
-        # Gerador do OFX
+        # Estrutura do arquivo OFX
         dt = datetime.now().strftime('%Y%m%d')
         ofx = f"OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nENCODING:USASCII\nCHARSET:1252\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>BRL</CURDEF><BANKTRANLIST>\n"
         for t in transacoes:
