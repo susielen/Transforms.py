@@ -1,88 +1,115 @@
 import streamlit as st
-import pandas as pd
 import pdfplumber
 import re
-import io
+from datetime import datetime
 
-st.set_page_config(page_title="Importação de Extrato", layout="wide")
+# Configuração da página
+st.set_page_config(page_title="Conversor OFX Profissional", page_icon="🏦")
 
-# Estilo do botão verde
+# Estilo para o botão de download verde e discreto
 st.markdown("""
     <style>
     div.stDownloadButton > button:first-child {
-        background-color: #28a745; color: white; border-radius: 5px;
+        background-color: #28a745;
+        color: white;
+        border-radius: 5px;
+        border: none;
+        padding: 5px 15px;
+        font-size: 14px;
+        font-weight: 500;
+        transition: 0.2s;
+    }
+    div.stDownloadButton > button:first-child:hover {
+        background-color: #218838;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("📑 Importação de Extrato Bancário")
+st.title("🏦 Conversor de Extrato para OFX")
+st.write("Selecione o banco e transforme seu PDF em um arquivo para o banco.")
 
-# --- MEMÓRIA CONTÁBIL ---
-if 'memoria' not in st.session_state:
-    st.session_state.memoria = {}
+# Lista de Bancos que você solicitou
+lista_bancos = [
+    "Santander", "Sicoob", "Itaú", "Banco do Brasil", "Caixa", 
+    "Inter", "Mercado Pago", "Sicredi", "XP", "Nubank", "Outro"
+]
 
-# --- INTERFACE ---
-col1, col2 = st.columns(2)
-with col1:
-    banco = st.selectbox("Banco:", ["Santander", "Sicoob", "Itaú", "BB", "Caixa", "Inter", "Nubank", "Outro"])
-with col2:
-    competencia = st.text_input("Competência (Ex: 01/01/2023):", "01/01/2023")
+banco_escolhido = st.selectbox("Banco do Extrato:", lista_bancos)
 
-arquivo_pdf = st.file_uploader("Suba o PDF do extrato:", type="pdf")
+arquivo_pdf = st.file_uploader(f"Suba o PDF do {banco_escolhido} aqui", type="pdf")
 
-if arquivo_pdf:
-    dados = []
+def gerar_conteudo_ofx(transacoes):
+    """Gera a estrutura do arquivo OFX conforme o padrão bancário"""
+    data_hoje = datetime.now().strftime('%Y%m%d')
+    ofx = f"""OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+<OFX>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<STMTRS>
+<CURDEF>BRL</CURDEF>
+<BANKTRANLIST>
+"""
+    for t in transacoes:
+        ofx += f"""<STMTTRN>
+<TRNTYPE>OTHER</TRNTYPE>
+<DTPOSTED>{data_hoje}</DTPOSTED>
+<TRNAMT>{t['valor']}</TRNAMT>
+<MEMO>{t['desc'][:32]}</MEMO>
+</STMTTRN>
+"""
+    ofx += """</BANKTRANLIST>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>"""
+    return ofx
+
+if arquivo_pdf is not None:
+    transacoes_detectadas = []
+    
     with pdfplumber.open(arquivo_pdf) as pdf:
         for pagina in pdf.pages:
             texto = pagina.extract_text()
             if texto:
-                for linha in texto.split('\n'):
+                linhas = texto.split('\n')
+                for linha in linhas:
+                    # O robô procura por: Data (00/00) e Valor (0,00 ou 0.000,00)
                     tem_data = re.search(r'(\d{2}/\d{2})', linha)
                     tem_valor = re.search(r'(-?\d?\.?\d+,\d{2})', linha)
                     
                     if tem_data and tem_valor:
-                        data = tem_data.group(1) + "/" + competencia.split('/')[-1]
-                        valor_str = tem_valor.group(1)
-                        v_num = float(valor_str.replace('.', '').replace(',', '.'))
-                        hist = linha.replace(tem_data.group(1), '').replace(valor_str, '').strip()[:50]
+                        # Limpa o valor para o formato americano (1234.56) que o OFX usa
+                        valor_limpo = tem_valor.group(1).replace('.', '').replace(',', '.')
+                        # Pega o que sobrou da linha como descrição
+                        descricao = linha.replace(tem_data.group(1), '').replace(tem_valor.group(1), '').strip()
                         
-                        # Lógica da Imagem:
-                        # Se entrou (>0) -> DEBITO (Soma)
-                        # Se saiu (<0) -> CREDITO (Subtrai)
-                        debito = abs(v_num) if v_num > 0 else ""
-                        credito = abs(v_num) if v_num < 0 else ""
-                        
-                        # Busca na memória
-                        conta = st.session_state.memoria.get(hist, "")
-                        
-                        dados.append({
-                            "Data": data,
-                            "Historico": hist,
-                            "Conta Contábil": conta,
-                            "Documento": "",
-                            "Valor Debito (Soma)": debito,
-                            "Valor Credito (Subtrai)": credito
+                        transacoes_detectadas.append({
+                            'valor': valor_limpo,
+                            'desc': descricao
                         })
 
-    if dados:
-        df = pd.DataFrame(dados)
-        st.write("### Edite as Contas Contábeis:")
-        # Tabela editável para o usuário preencher
-        df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
-
-        if st.button("💾 Ensinar Contas ao Robô"):
-            for _, r in df_editado.iterrows():
-                if r["Conta Contábil"]:
-                    st.session_state.memoria[r["Historico"]] = r["Conta Contábil"]
-            st.success("Memória atualizada!")
-
-        # Criar o Excel no formato da imagem
-        output = io.BytesIO()
-        # Aqui montamos o layout com cabeçalho igual à imagem
-        df_excel = df_editado[["Data", "Historico", "Documento", "Valor Debito (Soma)", "Valor Credito (Subtrai)", "Conta Contábil"]]
+    if transacoes_detectadas:
+        st.info(f"Sucesso! Encontrei {len(transacoes_detectadas)} lançamentos no extrato do {banco_escolhido}.")
         
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_excel.to_excel(writer, index=False, startrow=4) # Deixa espaço para o cabeçalho
-            # O código acima gera o corpo, o cabeçalho pode ser ajustado conforme a necessidade do sistema
-            
-        st.download_button("📥 Baixar Planilha para Sistema", output.getvalue(), f"importacao_{banco}.xlsx")
+        conteudo_ofx = gerar_conteudo_ofx(transacoes_detectadas)
+        
+        # Botão discreto para baixar
+        st.download_button(
+            label="📥 Baixar Arquivo OFX",
+            data=conteudo_ofx,
+            file_name=f"extrato_{banco_escolhido.lower().replace(' ', '_')}.ofx",
+            mime="application/x-ofx"
+        )
+    else:
+        st.warning("Não consegui identificar transações. Verifique se o PDF está legível e não é uma foto.")
+
+st.divider()
+st.caption("Nota: Este robô gera arquivos no padrão OFX para integração bancária.")
