@@ -4,10 +4,10 @@ import re
 import time
 from datetime import datetime
 
-# Configuração da página
-st.set_page_config(page_title="Conversor OFX Transformers", page_icon="🤖")
+# Configuração da aba do navegador
+st.set_page_config(page_title="OFX Transformer", page_icon="🤖")
 
-# Estilo para o botão verde e visual minimalista
+# Visual minimalista com botão verde
 st.markdown("""
     <style>
     div.stDownloadButton > button:first-child {
@@ -30,7 +30,7 @@ st.markdown("""
 
 st.title("🤖 OFX Transformer")
 
-# Interface limpa
+# Layout simples
 col1, col2 = st.columns([1, 2])
 
 with col1:
@@ -43,18 +43,17 @@ with col2:
     arquivo_pdf = st.file_uploader("", type="pdf")
 
 if arquivo_pdf:
-    # --- ANIMAÇÃO TRANSFORMERS (RÁPIDA E PEQUENA) ---
+    # Animação Transformers (Rápida e Pequena)
     progresso = st.empty()
-    # Sequência: Papel -> Robô -> Dinheiro -> Sucesso
     frames = ["📄", "⚙️", "🤖", "💸", "✨", "✅"]
     
     for frame in frames:
         progresso.markdown(f"<h3 style='text-align: center;'>{frame}</h3>", unsafe_allow_html=True)
-        time.sleep(0.15) # Mais rápido ainda para parecer uma transformação
+        time.sleep(0.15)
     
     progresso.empty() 
 
-    # --- PROCESSAMENTO ---
+    # Processamento dos dados
     transacoes = []
     with pdfplumber.open(arquivo_pdf) as pdf:
         for pagina in pdf.pages:
@@ -64,14 +63,15 @@ if arquivo_pdf:
                     m_data = re.search(r'(\d{2}/\d{2})', linha)
                     m_valor = re.search(r'(-?\d?\.?\d+,\d{2})', linha)
                     if m_data and m_valor:
+                        # Converte para o padrão americano do OFX
                         v = m_valor.group(1).replace('.', '').replace(',', '.')
                         d = linha.replace(m_data.group(1), '').replace(m_valor.group(1), '').strip()
                         transacoes.append({'v': v, 'd': d})
 
     if transacoes:
-        st.success(f"🤖 Transformação concluída! {len(transacoes)} itens processados.")
+        st.success(f"🤖 Transformação concluída! {len(transacoes)} itens.")
         
-        # Estrutura OFX
+        # Estrutura do arquivo OFX
         dt = datetime.now().strftime('%Y%m%d')
         ofx = f"OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\nENCODING:USASCII\nCHARSET:1252\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>BRL</CURDEF><BANKTRANLIST>\n"
         for t in transacoes:
