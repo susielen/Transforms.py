@@ -28,7 +28,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🤖 OFX Transformer")
+st.title("🤖 OFX Transforms")
 
 # Layout simples
 col1, col2 = st.columns([1, 2])
