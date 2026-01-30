@@ -4,37 +4,34 @@ import pdfplumber
 import re
 import io
 
-# Configuração da página
-st.set_page_config(page_title="Conversor Inteligente", page_icon="🧠")
+st.set_page_config(page_title="Importação de Extrato", layout="wide")
 
-# Estilo do botão
+# Estilo do botão verde
 st.markdown("""
     <style>
     div.stDownloadButton > button:first-child {
-        background-color: #28a745; color: white; border-radius: 5px; border: none; padding: 5px 15px;
+        background-color: #28a745; color: white; border-radius: 5px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🧠 Robô com Memória Contábil")
+st.title("📑 Importação de Extrato Bancário")
 
-# --- BANCO DE DADOS DE MEMÓRIA ---
-# Se for a primeira vez, cria a memória vazia
-if 'memoria_contas' not in st.session_state:
-    st.session_state.memoria_contas = {
-        "PIX RECEBIDO": "7001", # Exemplos que você pode mudar
-        "TARIFA BANCARIA": "8005",
-        "PAGAMENTO BOLETO": "1002"
-    }
+# --- MEMÓRIA CONTÁBIL ---
+if 'memoria' not in st.session_state:
+    st.session_state.memoria = {}
 
-with st.expander("📖 Ver/Editar Memória de Contas"):
-    st.write("Aqui o robô guarda o que aprendeu. Se o Histórico for igual, ele repete a Conta.")
-    st.json(st.session_state.memoria_contas)
+# --- INTERFACE ---
+col1, col2 = st.columns(2)
+with col1:
+    banco = st.selectbox("Banco:", ["Santander", "Sicoob", "Itaú", "BB", "Caixa", "Inter", "Nubank", "Outro"])
+with col2:
+    competencia = st.text_input("Competência (Ex: 01/01/2023):", "01/01/2023")
 
 arquivo_pdf = st.file_uploader("Suba o PDF do extrato:", type="pdf")
 
-if arquivo_pdf is not None:
-    transacoes = []
+if arquivo_pdf:
+    dados = []
     with pdfplumber.open(arquivo_pdf) as pdf:
         for pagina in pdf.pages:
             texto = pagina.extract_text()
@@ -44,44 +41,48 @@ if arquivo_pdf is not None:
                     tem_valor = re.search(r'(-?\d?\.?\d+,\d{2})', linha)
                     
                     if tem_data and tem_valor:
-                        data = tem_data.group(1)
+                        data = tem_data.group(1) + "/" + competencia.split('/')[-1]
                         valor_str = tem_valor.group(1)
                         v_num = float(valor_str.replace('.', '').replace(',', '.'))
-                        hist = linha.replace(data, '').replace(valor_str, '').strip()[:50]
+                        hist = linha.replace(tem_data.group(1), '').replace(valor_str, '').strip()[:50]
                         
-                        # LOGICA DE MEMÓRIA:
-                        # Se o histórico já existe na memória, ele usa. Se não, deixa vazio.
-                        conta_sugerida = st.session_state.memoria_contas.get(hist, "")
+                        # Lógica da Imagem:
+                        # Se entrou (>0) -> DEBITO (Soma)
+                        # Se saiu (<0) -> CREDITO (Subtrai)
+                        debito = abs(v_num) if v_num > 0 else ""
+                        credito = abs(v_num) if v_num < 0 else ""
                         
-                        credito = abs(v_num) if v_num < 0 else 0
-                        debito = v_num if v_num > 0 else 0
+                        # Busca na memória
+                        conta = st.session_state.memoria.get(hist, "")
                         
-                        transacoes.append({
+                        dados.append({
                             "Data": data,
-                            "Histórico": hist,
-                            "Conta Contábil": conta_sugerida,
+                            "Historico": hist,
+                            "Conta Contábil": conta,
                             "Documento": "",
-                            "Débito": debito,
-                            "Crédito": credito
+                            "Valor Debito (Soma)": debito,
+                            "Valor Credito (Subtrai)": credito
                         })
 
-    if transacoes:
-        df = pd.DataFrame(transacoes)
-        
-        st.write("### Ajuste as Contas na Tabela abaixo:")
-        # Tabela editável: você pode preencher a conta direto no site!
-        df_editado = st.data_editor(df, num_rows="dynamic")
+    if dados:
+        df = pd.DataFrame(dados)
+        st.write("### Edite as Contas Contábeis:")
+        # Tabela editável para o usuário preencher
+        df_editado = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
-        # BOTÃO PARA APRENDER:
-        if st.button("💾 Ensinar ao Robô (Salvar Contas)"):
-            for _, linha in df_editado.iterrows():
-                if linha["Conta Contábil"]:
-                    st.session_state.memoria_contas[linha["Histórico"]] = linha["Conta Contábil"]
-            st.success("O robô aprendeu! Na próxima vez, ele preencherá essas contas sozinho.")
+        if st.button("💾 Ensinar Contas ao Robô"):
+            for _, r in df_editado.iterrows():
+                if r["Conta Contábil"]:
+                    st.session_state.memoria[r["Historico"]] = r["Conta Contábil"]
+            st.success("Memória atualizada!")
 
-        # Gerar Excel com o que foi editado
+        # Criar o Excel no formato da imagem
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_editado.to_excel(writer, index=False)
+        # Aqui montamos o layout com cabeçalho igual à imagem
+        df_excel = df_editado[["Data", "Historico", "Documento", "Valor Debito (Soma)", "Valor Credito (Subtrai)", "Conta Contábil"]]
         
-        st.download_button("📥 Baixar Planilha para Sistema", output.getvalue(), "extrato_contabil.xlsx")
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_excel.to_excel(writer, index=False, startrow=4) # Deixa espaço para o cabeçalho
+            # O código acima gera o corpo, o cabeçalho pode ser ajustado conforme a necessidade do sistema
+            
+        st.download_button("📥 Baixar Planilha para Sistema", output.getvalue(), f"importacao_{banco}.xlsx")
