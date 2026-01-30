@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 # Configuração da aba do navegador
-st.set_page_config(page_title="Transforms", page_icon="🤖")
+st.set_page_config(page_title="OFX Transforms", page_icon="🤖")
 
 # Visual minimalista com botão verde
 st.markdown("""
