@@ -15,16 +15,15 @@ with st.expander("📖 INSTRUÇÕES:"):
         1. **Selecione o Banco:** Escolha o banco na lista.
         2. **Selecione o Ano:** Selecione o ano desejado no seletor.
         3. **Suba o PDF:** Arraste o arquivo para o campo de upload e o robô irá transformar seu arquivo em OFX.
-        
-      
+    """)
 
 # --- 2. SELETORES (BANCO E ANO) ---
 col1, col2 = st.columns(2)
 with col1:
     banco_sel = st.selectbox("1º Passo: Selecione o Banco", ["Santander", "Sicoob", "Itau", "BB", "Caixa", "Inter", "Nubank", "Outro"])
 with col2:
-    # Ordem dos anos atualizada conforme solicitado
-    ano_extrato = st.selectbox("2º Passo: Selecione o Ano", ["2024", "2025", "2026", "2027", "2028", "2029", "2030"], index=1) # index=1 deixa o 2025 pré-selecionado
+    # Lista de anos organizada
+    ano_extrato = st.selectbox("2º Passo: Selecione o Ano", ["2024", "2025", "2026", "2027", "2028", "2029", "2030"], index=1)
 
 # --- 3. UPLOAD DO ARQUIVO ---
 arquivo_pdf = st.file_uploader("3º Passo: Arraste seu PDF aqui", type="pdf")
