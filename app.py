@@ -16,8 +16,7 @@ with st.expander("📖 INSTRUÇÕES:"):
         2. **Selecione o Ano:** Selecione o ano desejado no seletor.
         3. **Suba o PDF:** Arraste o arquivo para o campo de upload e o robô irá transformar seu arquivo em OFX.
         
-        *O robô ignora saldos automáticos, mas mantém aplicações e resgates.*
-    """)
+      
 
 # --- 2. SELETORES (BANCO E ANO) ---
 col1, col2 = st.columns(2)
